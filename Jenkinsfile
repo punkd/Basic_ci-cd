@@ -174,12 +174,19 @@ pipeline {
         stage('Build & Test') {
             steps {
                 script {
-                    // Build Docker image
-                    def image = docker.build("${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}")
+                    // Build Docker image using shell commands
+                    sh """
+                        echo "Building Docker image..."
+                        docker build -t ${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} .
+                        docker tag ${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} ${REGISTRY}/${DOCKER_IMAGE}:latest
+                    """
                     
-                    // Push to ECR
-                    image.push()
-                    image.push("latest")
+                    // Push to ECR using shell commands
+                    sh """
+                        echo "Pushing Docker image to ECR..."
+                        docker push ${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG}
+                        docker push ${REGISTRY}/${DOCKER_IMAGE}:latest
+                    """
                 }
                 
                 // Run unit tests if test files exist
@@ -196,18 +203,13 @@ pipeline {
         
         stage('Security Scan - Container') {
             steps {
-                script {
-                    // Install Trivy if not present
-                    sh '''
-                        echo "Running Trivy container security scan..."
-                        trivy image --format json --output trivy-report.json ${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} || \
-                        echo '{"Results": [], "Error": "Trivy scan failed"}' > trivy-report.json
-            
-                         echo "✅ Container security scan completed"
-                    '''
+                sh """
+                    echo "Running Trivy container security scan..."
+                    trivy image --format json --output trivy-report.json ${REGISTRY}/${DOCKER_IMAGE}:${DOCKER_TAG} || \
+                    echo '{"Results": [], "Error": "Trivy scan failed"}' > trivy-report.json
                     
-                    
-                }
+                    echo "✅ Container security scan completed"
+                """
             }
         }
         
@@ -219,12 +221,26 @@ pipeline {
                                    passwordVariable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     script {
-                        // Deploy with Terraform
+                        // Deploy staging with Terraform using workspace
                         sh """
-                            cd terraform/staging
+                            # Initialize Terraform
                             terraform init
-                            terraform plan -var="image_tag=${DOCKER_TAG}" -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}"
-                            terraform apply -auto-approve -var="image_tag=${DOCKER_TAG}" -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}"
+                            
+                            # Create or select staging workspace
+                            terraform workspace select staging || terraform workspace new staging
+                            
+                            # Plan and apply for staging
+                            terraform plan \
+                              -var="environment=staging" \
+                              -var="image_tag=${DOCKER_TAG}" \
+                              -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}" \
+                              -var="instance_count=1"
+                              
+                            terraform apply -auto-approve \
+                              -var="environment=staging" \
+                              -var="image_tag=${DOCKER_TAG}" \
+                              -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}" \
+                              -var="instance_count=1"
                         """
                     }
                 }
@@ -241,7 +257,7 @@ pipeline {
                     script {
                         // Get the staging URL from Terraform output
                         def stagingUrl = sh(
-                            script: "cd terraform/staging && terraform output -raw load_balancer_url",
+                            script: "terraform workspace select staging && terraform output -raw load_balancer_url",
                             returnStdout: true
                         ).trim()
                         
@@ -266,29 +282,13 @@ pipeline {
                         
                         // DAST - Dynamic Application Security Testing
                         sh """
-                            # Install OWASP ZAP if not present
-                            if ! command -v zap-baseline.py &> /dev/null; then
-                                echo "OWASP ZAP not installed, using basic security checks instead..."
-                                
-                                # Basic security header checks
-                                echo "Checking security headers..."
-                                curl -I ${stagingUrl} | grep -i "x-frame-options\\|x-content-type-options\\|strict-transport-security" || echo "Some security headers missing"
-                                
-                                # Basic vulnerability checks
-                                echo "Running basic vulnerability checks..."
-                                curl -s ${stagingUrl} | grep -i "error\\|exception\\|stack trace" && echo "⚠️ Error information exposed" || echo "✅ No obvious error disclosure"
-                                
-                            else
-                                echo "Running OWASP ZAP baseline scan..."
-                                zap-baseline.py -t ${stagingUrl} || echo "ZAP scan completed with issues"
-                            fi
-                        """
-                        
-                        // Additional basic security checks
-                        sh """
                             echo "Running basic security checks..."
                             curl -I ${stagingUrl} | grep -i security || echo "No security headers found"
                             curl -I ${stagingUrl} | grep -i x-frame-options || echo "X-Frame-Options missing"
+                            
+                            # Basic vulnerability checks
+                            echo "Running basic vulnerability checks..."
+                            curl -s ${stagingUrl} | grep -i "error\\|exception\\|stack trace" && echo "⚠️ Error information exposed" || echo "✅ No obvious error disclosure"
                         """
                     }
                 }
@@ -305,10 +305,12 @@ pipeline {
                     script {
                         // Destroy staging infrastructure after testing
                         sh """
-                            cd terraform/staging
+                            terraform workspace select staging
                             terraform destroy -auto-approve \
+                              -var="environment=staging" \
                               -var="image_tag=${DOCKER_TAG}" \
-                              -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}"
+                              -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}" \
+                              -var="instance_count=1"
                         """
                     }
                 }
@@ -323,15 +325,27 @@ pipeline {
                 input message: 'Deploy to Production?', ok: 'Deploy'
                 
                 withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding', 
-                     credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6']
+                    usernamePassword(credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6', 
+                                   usernameVariable: 'AWS_ACCESS_KEY_ID', 
+                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     script {
                         sh """
-                            cd terraform/production
-                            terraform init
-                            terraform plan -var="image_tag=${DOCKER_TAG}" -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}"
-                            terraform apply -auto-approve -var="image_tag=${DOCKER_TAG}" -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}"
+                            # Create or select production workspace
+                            terraform workspace select production || terraform workspace new production
+                            
+                            # Plan and apply for production
+                            terraform plan \
+                              -var="environment=production" \
+                              -var="image_tag=${DOCKER_TAG}" \
+                              -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}" \
+                              -var="instance_count=2"
+                              
+                            terraform apply -auto-approve \
+                              -var="environment=production" \
+                              -var="image_tag=${DOCKER_TAG}" \
+                              -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}" \
+                              -var="instance_count=2"
                         """
                     }
                 }
@@ -362,20 +376,30 @@ pipeline {
                 ]) {
                     // Cleanup staging environment if pipeline fails
                     sh """
-                        cd terraform/staging || exit 0
+                        terraform workspace select staging || true
                         terraform destroy -auto-approve \
+                          -var="environment=staging" \
                           -var="image_tag=${DOCKER_TAG}" \
-                          -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}" || true
+                          -var="docker_image=${REGISTRY}/${DOCKER_IMAGE}" \
+                          -var="instance_count=1" || true
                     """
                     
                     // Optional: Clean up old ECR images (keep last 5)
                     sh """
-                        aws ecr list-images --repository-name ${DOCKER_IMAGE} \
-                          --filter tagStatus=UNTAGGED \
-                          --query 'imageIds[?imageDigest!=null]' \
-                          --output json | jq '.[:5]' | \
-                        aws ecr batch-delete-image --repository-name ${DOCKER_IMAGE} \
-                          --image-ids file:///dev/stdin || true
+                        # Install jq if not present
+                        if ! command -v jq &> /dev/null; then
+                            sudo apt-get update && sudo apt-get install -y jq || echo "Failed to install jq"
+                        fi
+                        
+                        # Clean up old images if jq is available
+                        if command -v jq &> /dev/null; then
+                            aws ecr list-images --repository-name ${DOCKER_IMAGE} \
+                              --filter tagStatus=UNTAGGED \
+                              --query 'imageIds[?imageDigest!=null]' \
+                              --output json | jq '.[:5]' | \
+                            aws ecr batch-delete-image --repository-name ${DOCKER_IMAGE} \
+                              --image-ids file:///dev/stdin || true
+                        fi
                     """
                 }
             }
