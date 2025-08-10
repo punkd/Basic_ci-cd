@@ -7,6 +7,9 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 # Set working directory
 WORKDIR /app
 
+# Upgrade pip and install pip-tools
+RUN pip install --upgrade pip pip-tools
+
 # Copy requirements first (layer caching)
 COPY requirements.txt .
 

@@ -5,7 +5,7 @@ Werkzeug~=3.0.1
 # Security (exact versions for security tools)
 flask-talisman==1.1.0  # Exact - security critical
 flask-limiter~=3.5.0   # Patch updates OK
-cryptography==41.0.8   # Exact - security critical
+cryptography>=41.0.7   # Exact - security critical
 
 # Production Server
 gunicorn==21.2.0       # WSGI HTTP Server
