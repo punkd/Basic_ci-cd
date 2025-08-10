@@ -1,0 +1,33 @@
+# Flask Web Framework (allow patch updates)
+Flask~=3.0.0          # Allows 3.0.x, blocks 3.1.x
+Werkzeug~=3.0.1
+
+# Security (exact versions for security tools)
+flask-talisman==1.1.0  # Exact - security critical
+flask-limiter~=3.5.0   # Patch updates OK
+cryptography==41.0.8   # Exact - security critical
+
+# Production Server
+gunicorn==21.2.0       # WSGI HTTP Server
+
+# Environment Management
+python-dotenv==1.0.0   # Load environment variables
+
+# Monitoring & Health Checks
+flask-healthz==1.0.1   # Health check endpoints
+
+# Development & Testing
+pytest==7.4.3         # Testing framework
+pytest-flask==1.3.0   # Flask testing utilities
+pytest-cov==4.1.0     # Code coverage
+
+# Security Tools (for CI/CD pipeline)
+bandit==1.7.5          # Security linter
+safety==2.3.4          # Dependency vulnerability scanner
+
+# Code Quality
+flake8==6.1.0          # Code linting
+black==23.11.0         # Code formatting
+
+# Documentation
+sphinx==7.2.6          # Documentation generator
