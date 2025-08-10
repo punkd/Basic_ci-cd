@@ -76,7 +76,7 @@ pipeline {
                         # Verify installations
                         ~/.local/bin/bandit --version || echo "Bandit installation failed"
                         ~/.local/bin/safety --version || echo "Safety installation failed"
-                        ~/.local/bin/truffleHog --version || echo "TruffleHog installation failed"
+                        ~/.local/bin/trufflehog --version || echo "TruffleHog installation failed"
                     '''
                 }
             }
@@ -126,16 +126,17 @@ pipeline {
                 stage('Secrets Scan') {
                     steps {
                         script {
-                            // Scan for secrets in code using the original truffleHog
+                            // Scan for secrets in code using truffleHog
                             sh '''
                                 export PATH=$PATH:~/.local/bin
-                                if command -v truffleHog &> /dev/null; then
-                                    ~/.local/bin/truffleHog --json --regex . > truffleHog-report.json 2>/dev/null || \
+                                if command -v trufflehog &> /dev/null; then
+                                    echo "Running TruffleHog secrets scan..."
+                                    ~/.local/bin/trufflehog --json --regex . > truffleHog-report.json 2>/dev/null || \
                                     echo "[]" > truffleHog-report.json
                                 else
                                     echo "TruffleHog not available, performing basic secrets scan..."
                                     # Basic regex search for common secrets
-                                    grep -r -i "password\\|secret\\|key\\|token" . --include="*.py" --include="*.js" --include="*.json" > basic-secrets-scan.txt 2>/dev/null || echo "No obvious secrets found"
+                                    grep -r -i "password\\|secret\\|key\\|token\\|api" . --include="*.py" --include="*.js" --include="*.json" --exclude-dir=".git" > basic-secrets-scan.txt 2>/dev/null || echo "No obvious secrets found"
                                     echo '{"message": "Basic secrets scan completed", "file": "basic-secrets-scan.txt"}' > truffleHog-report.json
                                 fi
                             '''
