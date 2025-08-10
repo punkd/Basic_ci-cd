@@ -19,8 +19,9 @@ pipeline {
         stage('Setup AWS & ECR') {
             steps {
                 withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding', 
-                     credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6']
+                    usernamePassword(credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6', 
+                                   usernameVariable: 'AWS_ACCESS_KEY_ID', 
+                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     script {
                         // Create S3 bucket for Terraform state if it doesn't exist
@@ -124,8 +125,9 @@ pipeline {
         stage('Deploy to Staging') {
             steps {
                 withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding', 
-                     credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6']
+                    usernamePassword(credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6', 
+                                   usernameVariable: 'AWS_ACCESS_KEY_ID', 
+                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     script {
                         // Deploy with Terraform
@@ -143,8 +145,9 @@ pipeline {
         stage('Security Tests - Runtime') {
             steps {
                 withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding', 
-                     credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6']
+                    usernamePassword(credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6', 
+                                   usernameVariable: 'AWS_ACCESS_KEY_ID', 
+                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     script {
                         // Get the staging URL from Terraform output
@@ -185,8 +188,9 @@ pipeline {
         stage('Cleanup Staging Environment') {
             steps {
                 withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding', 
-                     credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6']
+                    usernamePassword(credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6', 
+                                   usernameVariable: 'AWS_ACCESS_KEY_ID', 
+                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     script {
                         // Destroy staging infrastructure after testing
@@ -242,8 +246,9 @@ pipeline {
             // Emergency cleanup - destroy any remaining test infrastructure
             script {
                 withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding', 
-                     credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6']
+                    usernamePassword(credentialsId: '3f776ff3-06c6-49bf-b7c8-2277e9d5b1f6', 
+                                   usernameVariable: 'AWS_ACCESS_KEY_ID', 
+                                   passwordVariable: 'AWS_SECRET_ACCESS_KEY')
                 ]) {
                     // Cleanup staging environment if pipeline fails
                     sh """
