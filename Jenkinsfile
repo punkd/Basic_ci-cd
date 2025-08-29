@@ -223,10 +223,8 @@ pipeline {
                     script {
                         // Deploy staging with Terraform using workspace
                         sh """
-                            set -euo pipefail
-                            echo "PWD=$(pwd)"
-                            ls -la
                             # Initialize Terraform
+                            ls la
                             terraform init
                             
                             # Create or select staging workspace
