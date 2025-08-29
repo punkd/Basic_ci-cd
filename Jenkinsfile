@@ -224,7 +224,7 @@ pipeline {
                         // Deploy staging with Terraform using workspace
                         sh """
                             # Initialize Terraform
-                            ls la
+                            ls -la
                             terraform init
                             
                             # Create or select staging workspace
