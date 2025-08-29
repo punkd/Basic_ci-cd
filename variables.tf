@@ -23,3 +23,9 @@ variable "instance_count" {
   type        = number
   # No default value is set because the pipeline explicitly sets this for each environment.
 }
+
+variable "aws_region" {
+  description = "AWS region for provider/resources"
+  type        = string
+  default     = "us-west-2"
+}
